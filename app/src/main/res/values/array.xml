@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- These are the options displayed in the gender drop-down Spinner -->
+    <string-array name="array_presence_options">
+        <item>@string/unknown</item>
+        <item>@string/one_day</item>
+        <item>@string/two_days</item>
+        <item>@string/three_days</item>
+        <item>@string/four_days</item>
+    </string-array>
+</resources>
