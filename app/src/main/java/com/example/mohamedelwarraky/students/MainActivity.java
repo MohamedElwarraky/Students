@@ -1,9 +1,16 @@
 package com.example.mohamedelwarraky.students;
 
+
+import android.app.AlertDialog;
+import android.app.LoaderManager;
 import android.content.ContentUris;
 import android.content.ContentValues;
+import android.content.CursorLoader;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.Loader;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
@@ -12,112 +19,35 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.TextView;
+import android.widget.AdapterView;
+import android.widget.FilterQueryProvider;
+import android.widget.ListView;
+import android.widget.SearchView;
+
 
 import com.example.mohamedelwarraky.students.data.StudentContract.StudentEntry;
+import com.example.mohamedelwarraky.students.data.StudentDbHelper;
 
 /**
  * Displays list of pets that were entered and stored in the app.
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Cursor> {
 
+    /**
+     * Identifier for the pet data loader
+     */
+    private static final int STUDENT_LOADER = 0;
 
-    // Get name from user.
-    EditText mEditText;
-
-    // Id of required student.
-    static int currentID;
-
-    String input;
+    /**
+     * Adapter for the ListView
+     */
+    StudentCursorAdapter mCursorAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-
-        mEditText = findViewById(R.id.edit_search_student);
-
-        ImageView SearchImageView = findViewById(R.id.search_student);
-
-        SearchImageView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Log.v("MainActivity", "Searching for your student");
-                displayDatabaseInfo();
-            }
-        });
-
-
-        ImageView EditImageView = findViewById(R.id.edit_student);
-
-        EditImageView.setOnClickListener(new View.OnClickListener() {
-
-            @Override
-            public void onClick(View view) {
-
-                Uri currentStudentUri = null;
-
-                // Convert name to string and make as lower case
-                input = mEditText.getText().toString().trim();
-
-                // Create new intent to go to {@link EditorActivity}
-                Intent intent = new Intent(MainActivity.this, EditorActivity.class);
-
-                // Define a projection that specifies which columns from the database
-                // you will actually use after this query.
-                String[] projection = {
-                        StudentEntry._ID};
-
-                // Perform a query on the provider using the ContentResolver.
-                // Use the {@link StudentEntry#CONTENT_URI} to access the student data.
-                Cursor cursor = getContentResolver().query(
-                        StudentEntry.CONTENT_URI,   // The content URI of the words table
-                        projection,             // The columns to return for each row
-                        null,                   // Selection criteria
-                        null,                   // Selection criteria
-                        null);
-
-                try {
-
-                    // Figure out the index of each column
-                    int idColumnIndex = cursor.getColumnIndex(StudentEntry._ID);
-
-
-                    // Iterate through all the returned rows in the cursor
-                    while (cursor.moveToNext()) {
-
-                        currentID = cursor.getInt(idColumnIndex);
-                        // Use that index to extract the String or Int value of the word
-                        // at the current row the cursor is on.
-
-                        if (currentID == Integer.parseInt(input)) {
-                            // Form the content URI that represents the specific student that was clicked on,
-                            // by appending the "id" (passed as input to this method) onto the
-                            // {@link PetEntry#CONTENT_URI}.
-                            // For example, the URI would be "content://com.example.android.students/students/2"
-                            // if the pet with ID 2 was clicked on.
-                            currentStudentUri = ContentUris.withAppendedId(StudentEntry.CONTENT_URI, currentID);
-
-
-                        }
-                    }
-                } finally {
-                    // Always close the cursor when you're done reading from it. This releases all its
-                    // resources and makes it invalid
-                    Log.v("MainActivity", "close cursor");
-                    cursor.close();
-
-                }
-                // Set the URI on the data field of the intent
-                intent.setData(currentStudentUri);
-
-                // Launch the {@link EditorActivity} to display the data for the current student.
-                startActivity(intent);
-            }
-        });
 
         // Setup FAB to open EditorActivity
         FloatingActionButton fab = findViewById(R.id.fab);
@@ -128,163 +58,125 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(intent);
             }
         });
+
+
+        // Find the ListView which will be populated with the student data
+        ListView studentListView = findViewById(R.id.list);
+
+        // Find and set empty view on the ListView, so that it only shows when the list has 0 items.
+        View emptyView = findViewById(R.id.empty_view);
+        studentListView.setEmptyView(emptyView);
+
+        // Setup an Adapter to create a list item for each row of pet data in the Cursor.
+        // There is no pet data yet (until the loader finishes) so pass in null for the Cursor.
+        mCursorAdapter = new StudentCursorAdapter(this, null);
+        studentListView.setAdapter(mCursorAdapter);
+        studentListView.setTextFilterEnabled(true);
+
+
+        // Prepare your adapter for filtering
+        mCursorAdapter.setFilterQueryProvider(new FilterQueryProvider() {
+
+            @Override
+            public Cursor runQuery(CharSequence constraint) {
+
+                StudentDbHelper mDbHelper = new StudentDbHelper(getBaseContext());
+                SQLiteDatabase db = mDbHelper.getReadableDatabase();
+                // in real life, do something more secure than concatenation
+                // but it will depend on your schema
+                // This is the query that will run on filtering
+                String query =
+                        "SELECT " + StudentEntry._ID + " , " + StudentEntry.COLUMN_STUDENT_NAME
+                                + " , " + StudentEntry.COLUMN_STUDENT_GROUP
+                                + " FROM " + StudentEntry.TABLE_NAME
+                                + " where " + StudentEntry.COLUMN_STUDENT_NAME + " like '%" + constraint + "%' "
+                                + " OR " + StudentEntry.COLUMN_STUDENT_GROUP + " like '%" + constraint + "%' "
+                                + " ORDER BY NAME ASC";
+                return db.rawQuery(query, null);
+            }
+        });
+
+        // Setup the item click listener
+        studentListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
+                // Create new intent to go to {@link EditorActivity}
+                Intent intent = new Intent(MainActivity.this, EditorActivity.class);
+
+                // Form the content URI that represents the specific pet that was clicked on,
+                // by appending the "id" (passed as input to this method) onto the
+                // {@link PetEntry#CONTENT_URI}.
+                // For example, the URI would be "content://com.example.android.pets/pets/2"
+                // if the pet with ID 2 was clicked on.
+                Uri currentPetUri = ContentUris.withAppendedId(StudentEntry.CONTENT_URI, id);
+
+                // Set the URI on the data field of the intent
+                intent.setData(currentPetUri);
+
+                // Launch the {@link EditorActivity} to display the data for the current pet.
+                startActivity(intent);
+            }
+        });
+
+        // Kick off the loader
+        getLoaderManager().initLoader(STUDENT_LOADER, null, this);
     }
 
-
-    /**
-     * Temporary helper method to display information in the onscreen TextView about the state of
-     * the pets database.
-     */
-    private void displayDatabaseInfo() {
-
-        // Convert name to string and make as lower case
-        input = mEditText.getText().toString().trim();
-
-        // Define a projection that specifies which columns from the database
-        // you will actually use after this query.
-        String[] projection = {
-                StudentEntry._ID,
-                StudentEntry.COLUMN_STUDENT_NAME,
-                StudentEntry.COLUMN_STUDENT_GROUP,
-                StudentEntry.COLUMN_STUDENT_DEGREE,
-                StudentEntry.COLUMN_STUDENT_PRESENCE};
-
-        // Perform a query on the provider using the ContentResolver.
-        // Use the {@link StudentEntry#CONTENT_URI} to access the student data.
-        Cursor cursor = getContentResolver().query(
-                StudentEntry.CONTENT_URI,   // The content URI of the words table
-                projection,             // The columns to return for each row
-                null,                   // Selection criteria
-                null,                   // Selection criteria
-                null);                  // The sort order for the returned rows
-
-        TextView displayView = findViewById(R.id.text_view_student);
-
-
-        try {
-            // Create a header in the Text View that looks like this:
-            //
-            // The students table contains <number of rows in Cursor> students.
-            // _id - name - Group - degree - presence
-            //
-            // In the while loop below, iterate through the rows of the cursor and display
-            // the information from each column in this order.
-
-
-            // Figure out the index of each column
-            int idColumnIndex = cursor.getColumnIndex(StudentEntry._ID);
-            int nameColumnIndex = cursor.getColumnIndex(StudentEntry.COLUMN_STUDENT_NAME);
-            int groupColumnIndex = cursor.getColumnIndex(StudentEntry.COLUMN_STUDENT_GROUP);
-            int degreeColumnIndex = cursor.getColumnIndex(StudentEntry.COLUMN_STUDENT_DEGREE);
-            int presenceColumnIndex = cursor.getColumnIndex(StudentEntry.COLUMN_STUDENT_PRESENCE);
-
-            // Iterate through all the returned rows in the cursor
-            cursor.moveToFirst();
-            Log.v("MainActivity", "move to first");
-            do {
-
-                Log.v("MainActivity", "searching");
-
-                // Use that index to extract the String or Int value of the word
-                // at the current row the cursor is on.
-                currentID = cursor.getInt(idColumnIndex);
-                if (currentID == Integer.parseInt(input)) {
-                    Log.v("MainActivity", "found you student");
-                    String currentName = cursor.getString(nameColumnIndex).toLowerCase().trim();
-                    String currentGroup = cursor.getString(groupColumnIndex);
-                    String currentDegree = cursor.getString(degreeColumnIndex);
-                    int currentPresence = cursor.getInt(presenceColumnIndex);
-
-                    // Display the values from each column of the current row in the cursor in the TextView
-
-                    displayView.setText("Student ID : " + currentID + "\n" +
-                            "Student name : " + currentName + "\n" +
-                            "Studdent group : " + currentGroup + "\n");
-
-                    String[] Degree = convertStringToArray(currentDegree);
-                    if (Degree.length > 0) {
-                        displayView.append("First degree:" + Degree[0] + "\n");
-                    } else
-                        displayView.append("First degree:" + "\n");
-                    if (Degree.length > 1) {
-                        displayView.append("Second degree:" + Degree[1] + "\n");
-                    } else
-                        displayView.append("Second degree : " + "\n");
-                    if (Degree.length > 2) {
-                        displayView.append("Third degree : " + Degree[2] + "\n");
-                    } else
-                        displayView.append("Third degree : " + "\n");
-                    if (Degree.length > 3) {
-                        displayView.append("Fourth degree : " + Degree[3] + "\n");
-                    } else
-                        displayView.append("Fourth degree : " + "\n");
-
-                    switch (currentPresence) {
-                        case StudentEntry.ONE_DAY:
-                            displayView.append("Presence : " + "One day" + "\n");
-                            break;
-                        case StudentEntry.TWO_DAYS:
-                            displayView.append("Presence : " + "Two days" + "\n");
-                            break;
-                        case StudentEntry.THREE_DAYS:
-                            displayView.append("Presence : " + "Three days" + "\n");
-                            break;
-                        case StudentEntry.FOUR_DAYS:
-                            displayView.append("Presence : " + "Four days" + "\n");
-                            break;
-                        default:
-                            displayView.append("Presence : " + "Unknown" + "\n");
-                            break;
-                    }
-
-                    String text = "\n\nThe students table contains " + cursor.getCount() + " students.\n";
-                    displayView.append(text);
-
-
-                }
-            } while (cursor.moveToNext());
-        } finally {
-            // Always close the cursor when you're done reading from it. This releases all its
-            // resources and makes it invalid
-
-            Log.v("MainActivity", "close cursor");
-            cursor.close();
-
-        }
-    }
 
     /**
      * Helper method to insert hardcoded student data into the database. For debugging purposes only.
      */
     private void insertStudent() {
         // Create a ContentValues object where column names are the keys,
-        // and Mohamed's student attributes are the values.
+        // and Mohamed Ahmed's student attributes are the values.
         ContentValues values = new ContentValues();
         values.put(StudentEntry.COLUMN_STUDENT_NAME, "Mohamed Ahmed");
+        values.put(StudentEntry.COLUMN_STUDENT_SCHOOL, 50);
         values.put(StudentEntry.COLUMN_STUDENT_GROUP, "Group A");
-        values.put(StudentEntry.COLUMN_STUDENT_PRESENCE, StudentEntry.TWO_DAYS);
-        values.put(StudentEntry.COLUMN_STUDENT_DEGREE, "50,45");
+        values.put(StudentEntry.COLUMN_STUDENT_TEL, "01117475412,0155050647");
+        values.put(StudentEntry.COLUMN_STUDENT_ADDRESS, "Heliopolis");
+        values.put(StudentEntry.COLUMN_STUDENT_DEGREE, "50,60,,,,,50");
+
 
         // Insert a new row for Toto into the provider using the ContentResolver.
         // Use the {@link PetEntry#CONTENT_URI} to indicate that we want to insert
-        // into the pets database table.
-        // Receive the new content URI that will allow us to access Toto's data in the future.
+        // into the students database table.
+        // Receive the new content URI that will allow us to access Mohamed Ahmed's data in the future.
         Uri newUri = getContentResolver().insert(StudentEntry.CONTENT_URI, values);
     }
 
     /**
      * Helper method to delete all pets in the database.
      */
-    private void deleteAllPets() {
+    private void deleteAllStudents() {
         int rowsDeleted = getContentResolver().delete(StudentEntry.CONTENT_URI, null, null);
         Log.v("MainActivity", rowsDeleted + " rows deleted from pet database");
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu options from the res/menu/menu_catalog.xml file.
+        // Inflate the menu options from the res/menu/menu_main.xml file.
         // This adds menu items to the app bar.
         getMenuInflater().inflate(R.menu.menu_main, menu);
+        MenuItem mItem = menu.findItem(R.id.menu_search);
+        SearchView searchView = (SearchView) mItem.getActionView();
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String s) {
+
+                return false;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String data) {
+                // This is the filter in action
+                mCursorAdapter.getFilter().filter(data.toString());
+                // Show the chande when the user write something.
+                mCursorAdapter.notifyDataSetChanged();
+                return false;
+            }
+        });
+
         return true;
     }
 
@@ -295,22 +187,74 @@ public class MainActivity extends AppCompatActivity {
             // Respond to a click on the "Insert dummy data" menu option
             case R.id.action_insert_dummy_data:
                 insertStudent();
-                displayDatabaseInfo();
                 return true;
             // Respond to a click on the "Delete all entries" menu option
             case R.id.action_delete_all_entries:
-                deleteAllPets();
-                displayDatabaseInfo();
+                showDeleteAllConfirmationDialog();
                 return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    public static String[] convertStringToArray(String str) {
-        String strSeparator = ",";
 
-        String[] arr = str.split(strSeparator);
-        return arr;
+    @Override
+    public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
+
+        // Define a projection that specifies the columns from the table we care about.
+        String[] projection = {
+                StudentEntry._ID,
+                StudentEntry.COLUMN_STUDENT_NAME,
+                StudentEntry.COLUMN_STUDENT_GROUP};
+
+
+        // This loader will execute the ContentProvider's query method on a background thread
+        return new CursorLoader(this,   // Parent activity context
+                StudentEntry.CONTENT_URI,   // Provider content URI to query
+                projection,             // Columns to include in the resulting Cursor
+                null,                   // No selection clause
+                null,                   // No selection arguments
+                null);                  // Default sort order
     }
 
+    @Override
+    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+        // Update {@link StudentCursorAdapter} with this new cursor containing updated student data
+        mCursorAdapter.swapCursor(data);
+
+    }
+
+    @Override
+    public void onLoaderReset(Loader<Cursor> loader) {
+        // Callback called when the data needs to be deleted
+        mCursorAdapter.swapCursor(null);
+    }
+
+    /**
+     * Prompt the user to confirm that they want to delete this pet.
+     */
+    private void showDeleteAllConfirmationDialog() {
+        // Create an AlertDialog.Builder and set the message, and click listeners
+        // for the postivie and negative buttons on the dialog.
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(R.string.delete_all_dialog_msg);
+        builder.setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                // User clicked the "Delete" button, so delete the pet.
+                deleteAllStudents();
+            }
+        });
+        builder.setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                // User clicked the "Cancel" button, so dismiss the dialog
+                // and continue editing the pet.
+                if (dialog != null) {
+                    dialog.dismiss();
+                }
+            }
+        });
+
+        // Create and show the AlertDialog
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+    }
 }

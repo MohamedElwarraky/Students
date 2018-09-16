@@ -103,6 +103,12 @@ public class StudentProvider extends ContentProvider {
             default:
                 throw new IllegalArgumentException("Cannot query unknown URI " + uri);
         }
+
+        // Set notification URI on the Cursor,
+        // so we know what content URI the Cursor was created for.
+        // If the data at this URI changes, then we know we need to update the Cursor.
+        cursor.setNotificationUri(getContext().getContentResolver(), uri);
+
         return cursor;
     }
 
@@ -120,7 +126,7 @@ public class StudentProvider extends ContentProvider {
     }
 
     /**
-     * Insert a pet into the database with the given content values. Return the new content URI
+     * Insert a student into the database with the given content values. Return the new content URI
      * for that specific row in the database.
      */
     private Uri insertStudent(Uri uri, ContentValues values) {
@@ -130,19 +136,7 @@ public class StudentProvider extends ContentProvider {
             throw new IllegalArgumentException("student requires a name");
         }
 
-        // Check that the presence is valid
-        Integer presence = values.getAsInteger(StudentEntry.COLUMN_STUDENT_PRESENCE);
-        if (presence == null || !StudentEntry.isValidGender(presence)) {
-            throw new IllegalArgumentException("student requires valid presence");
-        }
-
-        // If the degree is provided, check that it's greater than or equal to 0
-        Integer degree = values.getAsInteger(StudentEntry.COLUMN_STUDENT_DEGREE);
-        if (degree != null && degree < 0) {
-            throw new IllegalArgumentException("student requires valid weight");
-        }
-
-        // No need to check the group, any value is valid (including null).
+        // No need to check the others, any value is valid (including null).
 
         // Get writeable database
         SQLiteDatabase database = mDbHelper.getWritableDatabase();
@@ -154,6 +148,8 @@ public class StudentProvider extends ContentProvider {
             Log.e(LOG_TAG, "Failed to insert row for " + uri);
             return null;
         }
+        // Notify all listeners that the data has changed for the pet content URI
+        getContext().getContentResolver().notifyChange(uri, null);
 
         // Return the new URI with the ID (of the newly inserted row) appended at the end
         return ContentUris.withAppendedId(uri, id);
@@ -186,7 +182,7 @@ public class StudentProvider extends ContentProvider {
      */
     private int updateStudent(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
 
-        // If the {@link PetEntry#COLUMN_STUDENT_NAME} key is present,
+        // If the {@link StudentEntry#COLUMN_STUDENT_NAME} key is present,
         // check that the name value is not null.
         if (values.containsKey(StudentEntry.COLUMN_STUDENT_NAME)) {
             String name = values.getAsString(StudentEntry.COLUMN_STUDENT_NAME);
@@ -195,26 +191,7 @@ public class StudentProvider extends ContentProvider {
             }
         }
 
-        // If the {@link PetEntry#COLUMN_STUDENT_PRESENCE} key is present,
-        // check that the gender value is valid.
-        if (values.containsKey(StudentEntry.COLUMN_STUDENT_PRESENCE)) {
-            Integer presence = values.getAsInteger(StudentEntry.COLUMN_STUDENT_PRESENCE);
-            if (presence == null || !StudentEntry.isValidGender(presence)) {
-                throw new IllegalArgumentException("Student requires valid presence");
-            }
-        }
-
-        // If the {@link PetEntry#COLUMN_PET_WEIGHT} key is present,
-        // check that the weight value is valid.
-        if (values.containsKey(StudentEntry.COLUMN_STUDENT_DEGREE)) {
-            // Check that the weight is greater than or equal to 0 kg
-            Integer weight = values.getAsInteger(StudentEntry.COLUMN_STUDENT_DEGREE);
-            if (weight != null && weight < 0) {
-                throw new IllegalArgumentException("Student requires valid degree");
-            }
-        }
-
-        // No need to check the group, any value is valid (including null).
+        // No need to check the others, any value is valid (including null).
 
         // If there are no values to update, then don't try to update the database
         if (values.size() == 0) {
@@ -223,6 +200,14 @@ public class StudentProvider extends ContentProvider {
 
         // Otherwise, get writeable database to update the data
         SQLiteDatabase database = mDbHelper.getWritableDatabase();
+
+        // Perform the update on the database and get the number of rows affected
+        int rowsUpdated = database.update(StudentEntry.TABLE_NAME, values, selection, selectionArgs);
+        // If 1 or more rows were updated, then notify all listeners that the data at the
+        // given URI has changed
+        if (rowsUpdated != 0) {
+            getContext().getContentResolver().notifyChange(uri, null);
+        }
 
         // Returns the number of database rows affected by the update statement
         return database.update(StudentEntry.TABLE_NAME, values, selection, selectionArgs);
@@ -233,20 +218,33 @@ public class StudentProvider extends ContentProvider {
         // Get writeable database
         SQLiteDatabase database = mDbHelper.getWritableDatabase();
 
+         // Track the number of rows that were deleted
+         int rowsDeleted;
+
         final int match = sUriMatcher.match(uri);
         switch (match) {
             case STUDENTS:
                 // Delete all rows that match the selection and selection args
-                return database.delete(StudentEntry.TABLE_NAME, selection, selectionArgs);
+                rowsDeleted = database.delete(StudentEntry.TABLE_NAME, selection, selectionArgs);
+                break;
             case STUDENT_ID:
                 // Delete a single row given by the ID in the URI
                 selection = StudentEntry._ID + "=?";
                 selectionArgs = new String[] { String.valueOf(ContentUris.parseId(uri)) };
-                return database.delete(StudentEntry.TABLE_NAME, selection, selectionArgs);
+                rowsDeleted = database.delete(StudentEntry.TABLE_NAME, selection, selectionArgs);
+                break;
             default:
                 throw new IllegalArgumentException("Deletion is not supported for " + uri);
         }
-    }
+         // If 1 or more rows were deleted, then notify all listeners that the data at the
+         // given URI has changed
+         if (rowsDeleted != 0) {
+             getContext().getContentResolver().notifyChange(uri, null);
+         }
+         // Return the number of rows deleted
+         return rowsDeleted;
+
+     }
 
 
     @Override

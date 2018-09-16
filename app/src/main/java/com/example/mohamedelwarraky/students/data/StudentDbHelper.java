@@ -42,10 +42,12 @@ public class StudentDbHelper extends SQLiteOpenHelper {
         // Create a String that contains the SQL statement to create the pets table
       final String SQL_CREATE_STUDENTS_TABLE = "CREATE TABLE " + StudentEntry.TABLE_NAME + " ("
                 + StudentEntry._ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
-                + StudentEntry.COLUMN_STUDENT_NAME + " TEXT UNIQUE NOT NULL, "
+                + StudentEntry.COLUMN_STUDENT_NAME + " TEXT NOT NULL, "
                 + StudentEntry.COLUMN_STUDENT_GROUP + " TEXT, "
-                + StudentEntry.COLUMN_STUDENT_DEGREE + " TEXT, "
-                + StudentEntry.COLUMN_STUDENT_PRESENCE + " INTEGER NOT NULL DEFAULT 0);";
+                + StudentEntry.COLUMN_STUDENT_SCHOOL + " TEXT, "
+                + StudentEntry.COLUMN_STUDENT_ADDRESS + " TEXT, "
+                + StudentEntry.COLUMN_STUDENT_TEL + " TEXT, "
+                + StudentEntry.COLUMN_STUDENT_DEGREE + " TEXT NOT NULL);";
 
         // Execute the SQL statement
         db.execSQL(SQL_CREATE_STUDENTS_TABLE);

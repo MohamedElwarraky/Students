@@ -21,7 +21,7 @@ public class StudentContract {
      * Use CONTENT_AUTHORITY to create the base of all URI's which apps will use to contact
      * the content provider.
      */
-    public static final Uri BASE_CONTENT_URI = Uri.parse("content://" + CONTENT_AUTHORITY);
+    private  static final Uri BASE_CONTENT_URI = Uri.parse("content://" + CONTENT_AUTHORITY);
     /**
      * Possible path (appended to base content URI for possible URI's)
      * For instance, content://com.example.android.students/students/ is a valid path for
@@ -85,23 +85,27 @@ public class StudentContract {
         public final static String COLUMN_STUDENT_GROUP = "groups";
 
         /**
-         * Presence of the student.
+         * Name of school for the student.
          * <p>
-         * The only possible values are {@link #UNKNOWN}, {@link #ONE_DAY},
-         * {@link #TWO_DAYS}, {@link #THREE_DAYS}, or {@link #FOUR_DAYS}.
-         * <p>
-         * Type: INTEGER
+         * Type: TEXT
          */
-        public final static String COLUMN_STUDENT_PRESENCE = "presence";
+        public final static String COLUMN_STUDENT_SCHOOL = "school";
 
         /**
-         * Possible values for the presence of the student.
+         * Cost of the student.
+         * <p>
+         * Type: TEXT
          */
-        public static final int UNKNOWN = 0;
-        public static final int ONE_DAY = 1;
-        public static final int TWO_DAYS = 2;
-        public static final int THREE_DAYS = 3;
-        public static final int FOUR_DAYS = 4;
+        public final static String COLUMN_STUDENT_ADDRESS = "address";
+
+        /**
+         * Cost of the student.
+         * <p>
+         * Type: TEXT
+         */
+        public final static String COLUMN_STUDENT_TEL = "telephone";
+
+
 
         /**
          * Degrees of the student.
@@ -109,18 +113,6 @@ public class StudentContract {
          * Type: TEXT
          */
         public final static String COLUMN_STUDENT_DEGREE = "degree";
-
-
-        /**
-         * Returns whether or not the given gender is {@link #UNKNOWN}, {@link #ONE_DAY},
-         * {@link #TWO_DAYS}, {@link #THREE_DAYS}, or {@link #FOUR_DAYS}.
-         */
-        public static boolean isValidGender(int days) {
-            if (days == UNKNOWN || days == ONE_DAY || days == TWO_DAYS || days == THREE_DAYS || days == FOUR_DAYS) {
-                return true;
-            }
-            return false;
-        }
 
 
     }
